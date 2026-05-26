@@ -250,7 +250,7 @@
                     </ul>
                 </div>
                 <div class="p-6 border border-gray-100 rounded-[30px]">
-                    <h3 class="font-black text-gray-900 uppercase text-xs mb-2 italic">Nilai Perusahaan</h3>
+                    <h3 class="font-black text-gray-900 uppercase text-xs mb-2 italic">Nilai Keunggulan</h3>
                     <ul class="text-xs text-gray-600 space-y-2">
                         <li>• Integritas dalam setiap transaksi.</li>
                         <li>• Kecepatan dalam pengiriman.</li>
@@ -350,7 +350,7 @@
             </div>
 
             <div>
-                <h4 class="lang-txt font-black text-sm mb-6 uppercase tracking-widest" data-id="Perusahaan" data-en="Company">Perusahaan</h4>
+                <h4 class="lang-txt font-black text-sm mb-6 uppercase tracking-widest" data-id="Keunggulan" data-en="Company">Keunggulan</h4>
                 <ul class="space-y-4 text-gray-400 text-sm">
                     <li><a href="javascript:void(0)" onclick="toggleAbout()" class="lang-txt hover:text-white transition" data-id="About" data-en="About">Tentang Kami</a></li>
                     <li><a href="javascript:void(0)" onclick="togglePolicy()" class="lang-txt hover:text-white transition" data-id="Kebijakan" data-en="Privacy Policy">Kebijakan</a></li>
@@ -392,6 +392,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstati
         let cart = [];
         let allProducts = [];
         let slideIdx = 0;
+        let currentUserHP = null;
 
         window.toggleSidebar = () => document.getElementById('sidebar').classList.toggle('hidden');
         window.toggleAuth = () => document.getElementById('auth-modal').classList.toggle('hidden');
@@ -428,28 +429,50 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstati
         setInterval(() => moveSlide(1), 5000); // Auto slide setiap 5 detik
 
         window.searchProducts = () => {
-            const val = document.getElementById('search-input').value.toLowerCase();
-            const filtered = allProducts.filter(p => p.name.toLowerCase().includes(val));
-            renderProducts(filtered);
-        };
+    applyFilter();
+};
 
-        function applyFilter() {
-    const filtered = currentCategory 
-        ? allProducts.filter(p => p.category.toLowerCase() === currentCategory.toLowerCase()) 
-        : allProducts;
+function applyFilter() {
+    const searchValue = document.getElementById('search-input').value.toLowerCase();
+    
+    // Jika kolom pencarian diisi, cari ke ALL PRODUK (abaikan kategori)
+    // Jika kolom pencarian kosong, kembalikan filter berdasarkan kategori yang aktif
+    const filtered = allProducts.filter(p => {
+        if (searchValue !== "") {
+            // Mencari di semua produk yang namanya cocok
+            return p.name.toLowerCase().includes(searchValue);
+        } else {
+            // Jika kolom pencarian kosong, filter normal berdasarkan kategori terpilih
+            return currentCategory 
+                ? p.category.toLowerCase() === currentCategory.toLowerCase() 
+                : true;
+        }
+    });
+
+    // BONUS LOGIC: Menghapus highlight hitam di tombol kategori saat pengguna mengetik,
+    // agar pembeli tidak bingung kenapa produk kategori lain ikut muncul.
+    if (searchValue !== "") {
+        const buttons = document.querySelectorAll('.category-btn');
+        buttons.forEach(btn => {
+            btn.classList.remove('bg-black', 'text-white', 'shadow-lg');
+            btn.classList.add('bg-gray-200', 'text-black');
+        });
+    }
+
     renderProducts(filtered);
 }
 
-    let currentCategory = null; 
-    window.loadProducts = () => {
-    // Listener Real-time
+let currentCategory = 'carlotti'; // Set default ke carlotti saat web dibuka
+window.loadProducts = () => {
+    // Listener Real-time dari Firebase
     onSnapshot(collection(db, "products"), (snapshot) => {
         allProducts = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
-        
-        // Jalankan filter jika kategori sedang terpilih
         applyFilter();
     });
 };
+
+// Panggil fungsi loadProducts agar data langsung otomatis dimuat begitu script siap
+loadProducts();
 
         function renderProducts(data) {
     const list = document.getElementById('product-list');
@@ -483,14 +506,24 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstati
     `).join('');
 }
 
-        window.addToCart = (id) => {
-            const prod = allProducts.find(p => p.id === id);
-            cart.push(prod);
-            updateCartUI();
-            if(!document.getElementById('cart-sidebar').classList.contains('cart-open')) {
-                toggleCart();
-            }
-        };
+       window.addToCart = (id) => {
+    const prod = allProducts.find(p => p.id === id);
+    if (!prod) return;
+    
+    cart.push(prod);
+    updateCartUI();
+    
+    // Cek apakah ada session user yang sedang login aktif
+    const user = JSON.parse(localStorage.getItem('userSession'));
+    const userHP = user ? user.hp : null;
+    
+    // Simpan otomatis (ke Firestore jika sudah login, ke LocalStorage jika belum)
+    saveCartToFirebase(userHP);
+
+    if(!document.getElementById('cart-sidebar').classList.contains('cart-open')) {
+        toggleCart();
+    }
+};
 
         window.changeCategory = (category) => {
     currentCategory = category;
@@ -565,6 +598,9 @@ function checkSession() {
     const container = document.getElementById('user-session');
 
     if (user) {
+        // Jalankan sinkronisasi keranjang dari Firebase menggunakan nomor HP user
+        syncCartFromFirebase(user.hp);
+
         // Jika sudah login, tampilkan nama dan tombol logout
         container.innerHTML = `
             <div class="flex items-center gap-3 bg-gray-100 px-4 py-2 rounded-2xl border border-gray-200">
@@ -578,6 +614,13 @@ function checkSession() {
             </div>
         `;
     } else {
+        // Jika belum login, ambil data keranjang sementara dari browser (jika ada)
+        const localCart = localStorage.getItem('temporary_cart');
+        if (localCart) {
+            cart = JSON.parse(localCart);
+            updateCartUI();
+        }
+
         // Jika belum login, tampilkan ikon user biasa
         container.innerHTML = `
             <i onclick="toggleAuth()" class="fa-solid fa-circle-user text-2xl cursor-pointer hover:text-blue-600"></i>
@@ -589,8 +632,10 @@ function checkSession() {
 window.logout = () => {
     if(confirm('Apakah Anda ingin keluar?')) {
         localStorage.removeItem('userSession');
+        localStorage.removeItem('temporary_cart'); // 🌟 Tambahkan ini untuk bersihkan cache keranjang lokal
+        cart = []; // Kosongkan array keranjang di aplikasi
         checkSession();
-        location.reload(); // Refresh untuk reset state
+        location.reload(); 
     }
 };
 
@@ -621,6 +666,58 @@ document.getElementById('login-form').onsubmit = async (e) => {
 
 // Jalankan pengecekan session setiap kali halaman dibuka
 checkSession();
+
+        // 🌟 SINKRONISASI 1: Ambil data keranjang dari Firestore (Saat user login)
+async function syncCartFromFirebase(userHP) {
+    if (!userHP) return;
+    try {
+        const q = query(collection(db, "carts"), where("userHP", "==", userHP));
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+            // Jika ada keranjang online di database, ambil dan masukkan ke aplikasi
+            const cartDoc = querySnapshot.docs[0];
+            cart = cartDoc.data().items || [];
+        } else {
+            // Jika di database kosong tapi di browser ada isi (dari sebelum login), backup ke database
+            if (cart.length > 0) {
+                await saveCartToFirebase(userHP);
+            }
+        }
+        updateCartUI();
+    } catch (error) {
+        console.error("Gagal sinkronisasi data keranjang:", error);
+    }
+}
+
+// 🌟 SINKRONISASI 2: Simpan otomatis data keranjang ke Firestore setiap ada perubahan
+async function saveCartToFirebase(userHP) {
+    // Jika belum login, simpan di localStorage browser saja dulu sementara
+    if (!userHP) {
+        localStorage.setItem('temporary_cart', JSON.stringify(cart));
+        return;
+    }
+
+    try {
+        const q = query(collection(db, "carts"), where("userHP", "==", userHP));
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+            // Jika dokumen keranjang user sudah ada di Firestore, timpa dengan data terbaru
+            const docRef = querySnapshot.docs[0].ref;
+            const { setDoc } = await import("https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js");
+            await setDoc(docRef, { userHP: userHP, items: cart });
+        } else {
+            // Jika user baru pertama kali memasukkan barang ke keranjang, buat dokumen baru
+            await addDoc(collection(db, "carts"), {
+                userHP: userHP,
+                items: cart
+            });
+        }
+    } catch (error) {
+        console.error("Gagal mengamankan data keranjang ke database:", error);
+    }
+}
 
 // Pastikan fungsi ditambahkan ke objek 'window' agar bisa dibaca oleh HTML
 // --- 1. PROSES LOAD AWAL ---
