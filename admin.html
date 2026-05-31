@@ -26,23 +26,28 @@
 
         /* Modal Preview Bukti TF */
         #tfModal { transition: all 0.3s ease; }
+
+        /* Animasi Mengambang Elegan untuk Gambar */
+        @keyframes swim {
+            0%, 100% { transform: translateY(0) rotate(-2deg); }
+            50% { transform: translateY(-12px) rotate(4deg); }
+        }
+        /* Animasi Bayangan Mengikuti Tinggi Sepatu */
+        @keyframes shadow {
+            0%, 100% { transform: scale(1); opacity: 0.4; }
+            50% { transform: scale(0.7); opacity: 0.15; }
+        }
     </style>
 </head>
 <body class="min-h-screen">
 
 <section id="authPage" class="flex items-center justify-center py-10 px-4 min-h-screen">
   <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 flex flex-col items-center">
-    <div id="doraemonFace">
-      <svg width="180" height="180" viewBox="0 0 180 180">
-        <circle cx="90" cy="90" r="85" fill="#00a0de" stroke="#004a7c" stroke-width="4"/>
-        <circle cx="90" cy="110" r="65" fill="white"/>
-        <circle id="nose" cx="90" cy="85" r="12"/>
-        <ellipse id="leftEye" class="eye" cx="60" cy="70" rx="18" ry="25"/>
-        <ellipse id="rightEye" class="eye" cx="120" cy="70" rx="18" ry="25"/>
-        <circle id="leftPupil" class="pupil" cx="60" cy="80" r="9"/>
-        <circle id="rightPupil" class="pupil" cx="120" cy="80" r="9"/>
-        <path id="mouth" d="M50 120 Q90 130 130 120" stroke="#a3000a" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
+   <div id="shoeAnimation" class="relative w-56 h-56 flex items-center justify-center mb-2 transition-all duration-500">
+      <div class="absolute w-40 h-40 bg-gradient-to-tr from-emerald-200/40 to-indigo-200/40 rounded-full blur-2xl animate-[pulse_3s_infinite]"></div>
+      <div class="absolute inset-4 bg-white/60 backdrop-blur-sm rounded-[38px] shadow-inner border border-white/40"></div>
+      <img id="shoeImg" src="https://i.ibb.co.com/h1RR2DYM/vector.png" alt="Shoe Login Animation" class="w-60 h-60 object-contain z-10 drop-shadow-[0_15px_15px_rgba(0,0,0,0.15)] transition-all duration-700 ease-out transform hover:scale-110 motion-safe:animate-[swim_4s_infinite_ease-in-out]">
+      <div class="absolute bottom-8 w-28 h-2 bg-slate-900/10 rounded-full blur-sm motion-safe:animate-[shadow_4s_infinite_ease-in-out]"></div>
     </div>
     <p class="text-center text-indigo-800 font-semibold mb-6">Silahkan Login dulu ya</p>
 
@@ -123,6 +128,7 @@
                                 <div class="space-y-2">
                                     <label class="text-[10px] font-black text-gray-400 ml-4">KATEGORI</label>
                                     <select id="p-category" class="w-full p-4 bg-white/50 border border-gray-100 rounded-2xl focus:ring-2 ring-emerald-500 outline-none font-bold">
+                                        <option value="Carlotti">Silahkan Pilih</option>
                                         <option value="Carlotti">Carlotti</option>
                                         <option value="Baffilo">Baffilo</option>
                                     </select>
@@ -151,6 +157,8 @@
                                 <span id="prev-cat" class="text-[10px] font-black text-emerald-500 uppercase">Category</span>
                                 <h4 id="prev-name" class="font-black text-lg text-gray-800 truncate mb-2">Nama Produk Anda</h4>
                                 <p id="prev-price" class="text-xl font-black italic text-gray-900">Rp 0</p>
+                                <p id="prev-stock" class="text-xs font-bold text-gray-500 mt-1">Pre-Order</p>
+                                
                             </div>
                         </div>
                     </div>
@@ -285,6 +293,14 @@
 
     inputName.addEventListener('input', () => document.getElementById('prev-name').innerText = inputName.value || "Nama Produk Anda");
     inputPrice.addEventListener('input', () => document.getElementById('prev-price').innerText = "Rp " + (parseInt(inputPrice.value) || 0).toLocaleString());
+    inputStock.addEventListener('input', () => {
+    const stockVal = parseInt(inputStock.value);
+    if (isNaN(stockVal) || stockVal <= 0) {
+        document.getElementById('prev-stock').innerText = "Pre-Order";
+    } else {
+        document.getElementById('prev-stock').innerText = "Stok: " + stockVal + " Pasang";
+    }
+});
     inputCat.addEventListener('change', () => document.getElementById('prev-cat').innerText = inputCat.value);
     inputImg.addEventListener('input', () => {
         const img = document.getElementById('prev-img');
@@ -322,6 +338,7 @@ document.getElementById('product-form').onsubmit = async (e) => {
         document.getElementById('prev-icon').classList.remove('hidden');
         document.getElementById('prev-name').innerText = "Nama Produk Anda";
         document.getElementById('prev-price').innerText = "Rp 0";
+        document.getElementById('prev-stock').innerText = "Rp 0";
     } catch (err) { 
         alert("Error: " + err.message); 
     }
